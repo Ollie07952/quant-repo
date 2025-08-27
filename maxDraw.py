@@ -2,7 +2,7 @@ def maxDraw(prices):
     import numpy as np         
     """
              
-    Calculates the maximum drawdown within an array(s) of prices
+    Calculates the maximum drawdown within an array(s) of prices, in both absolute and percentage terms
     --
     Parameters:
              
@@ -15,15 +15,10 @@ def maxDraw(prices):
     
     """
     
-    abs_dds, percent_dds = [],[]
-    
-    for price_set in prices:
-        highest, biggest_abs, biggest_perc = price_set[0], 0, 0
-        for price in price_set[1:]:
-            highest = max(highest, price)
-            biggest_abs = max(biggest_abs, highest-price)
-            biggest_perc = max(biggest_perc, (highest-price)/highest)
-        abs_dds.append(biggest_abs)
-        percent_dds.append(biggest_perc)
-    max_draws = np.array([(abs_dd,perc_dd) for abs_dd,perc_dd in zip(abs_dds,percent_dds)])
+    highest = np.maximum.accumulate(prices, axis = 1)
+    biggest_abs = np.subtract(highest, prices)
+    biggest_perc = np.divide(biggest_abs,highest)
+    abs_dds = biggest_abs.max(axis = 1)
+    perc_dds = biggest_perc.max(axis = 1)
+    max_draws = np.stack((abs_dds,perc_dds), axis = 1)
     return max_draws
