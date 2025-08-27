@@ -15,18 +15,15 @@ def maxDraw(prices):
     
     """
     
-    bigs_abs, bigs_draws = [],[]
+    abs_dds, percent_dds = [],[]
     
     for price_set in prices:
-        highest = price_set[0]
-        big_abs, big_draw = 0,0
+        highest, biggest_abs, biggest_perc = price_set[0], 0, 0
         for price in price_set[1:]:
-            if price > highest:
-                highest = price
-            big_abs = max(big_abs, highest-price)
-            big_draw = max(big_draw, (highest-price)/highest)
-        bigs_abs.append(big_abs)
-        bigs_draws.append(big_draw)
-    max_draws = np.array([(abs_dd,percent_dd) for abs_dd,percent_dd in zip(bigs_abs,bigs_draws)])
+            highest = max(highest, price)
+            biggest_abs = max(biggest_abs, highest-price)
+            biggest_perc = max(biggest_perc, (highest-price)/highest)
+        abs_dds.append(biggest_abs)
+        percent_dds.append(biggest_perc)
+    max_draws = np.array([(abs_dd,perc_dd) for abs_dd,perc_dd in zip(abs_dds,percent_dds)])
     return max_draws
-
