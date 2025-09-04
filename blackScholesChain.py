@@ -46,6 +46,68 @@ def bsPut(S, X, r, t, sigma):
 
     return put
 
+def fc(sigma, S, X, r, t, C):
+    import numpy as np
+    from scipy.stats import norm
+
+    X = np.array(X)
+    C = np.array(C)
+
+    d1 = (np.log(S / X) + (r + 0.5 * sigma ** 2) * t) / (sigma * np.sqrt(t))
+    d2 = d1 - sigma * np.sqrt(t)
+    return S * norm.cdf(d1) - X * np.exp(-r * t) * norm.cdf(d2) - C
+
+def impliedCall(S, X, r, t, C):
+    """
+    Calculates call option implied volatilities given option chain data
+    --
+    :arg S: float; current underlying price
+    :arg X: list of floats/ints; exercise price(s)
+    :arg r: float; interest rate
+    :arg t: float; time to expiration (in years)
+    :arg C: list of floats; last market call prices
+    --
+    :return: pandas series of floats; call option implied volatilities
+    """
+    import numpy as np
+    from pandas import Series
+    from scipy.optimize import fsolve
+
+    x0 = np.subtract(X,S) #initial guesses = intrinsic value
+    result = Series(fsolve(fc, x0, args = (S,X,r,t,C))*100, index = X).round(2)
+    return result.astype(str) + "%"
+
+def fp(sigma, S, X, r, t, P):
+    import numpy as np
+    from scipy.stats import norm
+
+    X = np.array(X)
+    P = np.array(P)
+
+    d1 = (np.log(S / X) + (r + 0.5 * sigma ** 2) * t) / (sigma * np.sqrt(t))
+    d2 = d1 - sigma * np.sqrt(t)
+    return X * np.exp(-r * t) * norm.cdf(-d2) - S * norm.cdf(-d1) - P
+
+def impliedPut(S, X, r, t, P):
+    """
+    Calculates put option implied volatilities given option chain data
+    --
+    :arg S: float; current underlying price
+    :arg X: list of floats/ints; exercise price(s)
+    :arg r: float; interest rate
+    :arg t: float; time to expiration (in years)
+    :arg P: list of floats; last market put prices
+    --
+    :return: pandas series of floats; put option implied volatilities
+    """
+    import numpy as np
+    from pandas import Series
+    from scipy.optimize import fsolve
+
+    x0 = np.subtract(S, X) #initial guesses = intrinsic value
+    result = Series(fsolve(fp, x0, args = (S,X,r,t,P))*100, index = X).round(2)
+    return result.astype(str) + "%"
+
 def optionChain(chain, S, r, t, sigma, strikes = 10):
     """
     Calculates and returns pandas dataframe for put and call option chains with Black-Scholes theoretical values.
@@ -69,15 +131,16 @@ def optionChain(chain, S, r, t, sigma, strikes = 10):
     p.set_index(["Strike"], inplace = True)
     c["Moneyness"] = Series(S - c.index, index = c.index).map(lambda x: max(0,x))
     p["Moneyness"] = Series(p.index - S, index = p.index).map(lambda x: max(0,x))
-    c = c.iloc[(c.index.get_loc(c["Moneyness"].idxmin()) - strikes//2):(c.index.get_loc(c["Moneyness"].idxmin()) + strikes//2), 2:10] #idxmin returns first occurrence only
-    p = p.iloc[(p.index.get_loc(p["Moneyness"][p["Moneyness"] != 0].idxmin()) - 1 - strikes//2):(p.index.get_loc(p["Moneyness"][p["Moneyness"] != 0].idxmin()) - 1 + strikes//2), 2:10]
-    c.drop(columns = ["Change","% Change"]) #for some reason the % one is sometimes capital 'C', but sometimes lower case 'c'?
-    p.drop(columns = ["Change","% Change"]) #Moneyness column is by design omitted, can easily be added in by removing right column indexes in above lines
+    c = c.iloc[(c.index.get_loc(c["Moneyness"].idxmin()) - strikes//2):(c.index.get_loc(c["Moneyness"].idxmin()) + strikes//2), 2:9] #idxmin returns first occurrence only
+    p = p.iloc[(p.index.get_loc(p["Moneyness"][p["Moneyness"] != 0].idxmin()) - 1 - strikes//2):(p.index.get_loc(p["Moneyness"][p["Moneyness"] != 0].idxmin()) - 1 + strikes//2), 2:9]
+    c.drop(columns = ["Change","% Change"], inplace = True) #Moneyness column is by design omitted, can easily be added in by removing right column indexes in above lines
+    p.drop(columns = ["Change","% Change"], inplace = True)
     call = bsCall(S, c.index, r, t, sigma)
     put = bsPut(S, p.index, r, t, sigma)
-    c["Black-Scholes"] = call
-    p["Black-Scholes"] = put
+    c["Black-Scholes"] = call.round(3)
+    p["Black-Scholes"] = put.round(3)
+    c["BS Implied Volatility"] = impliedCall(S, c.index, r, t, c["Last Price"])
+    p["BS Implied Volatility"] = impliedPut(S, p.index, r, t, p["Last Price"])
     c.columns.name = "Calls"
     p.columns.name = "Puts"
-
     return c,p
