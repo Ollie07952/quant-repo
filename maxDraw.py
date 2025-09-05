@@ -1,20 +1,13 @@
 def maxDraw(prices):
-    import numpy as np         
     """
-             
     Calculates the maximum drawdown within an array(s) of prices
     --
-    Parameters:
-             
-    prices : array(s); array(s) of prices
+    :arg prices: array(s); array(s) of prices
     --
-    
-    Returns:
-    
-    max_draws : array of tuples of floats; value of the maximum drawdown and corresponding percent return of this drawdown for each set of prices
-    
+    :returns max_draws: array of tuples of floats; value of the maximum drawdown and corresponding percent return of this drawdown for each set of prices
     """
-    
+    import numpy as np
+
     bigs_abs, bigs_draws = [],[]
     
     for price_set in prices:
