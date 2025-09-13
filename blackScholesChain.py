@@ -3,7 +3,7 @@ def bsCall(S, X, r, t, sigma):
     Calculates theoretical call values using the Black-Scholes model.
     --
     :arg S: float; current underlying price
-    :arg X: float; list of floats/ints; exercise price(s)
+    :arg X: float; array of floats/ints; exercise price(s)
     :arg r: float; interest rate
     :arg t: float; time to expiration (in years)
     :arg sigma: float; annualised volatility
@@ -30,7 +30,7 @@ def bsPut(S, X, r, t, sigma):
     Calculates theoretical put values using the Black-Scholes model.
     --
     :arg S: float; current underlying price
-    :arg X: float; list of floats/ints; exercise price(s)
+    :arg X: float; array of floats/ints; exercise price(s)
     :arg r: float; interest rate
     :arg t: float; time to expiration (in years)
     :arg sigma: float; annualised volatility
@@ -57,10 +57,10 @@ def impliedCall(S, X, r, t, C):
     Calculates call option implied volatilities given option chain data
     --
     :arg S: float; current underlying price
-    :arg X: list of floats/ints; exercise price(s)
+    :arg X: array of floats/ints; exercise price(s)
     :arg r: float; interest rate
     :arg t: float; time to expiration (in years)
-    :arg C: list of floats; last market call prices
+    :arg C: array of floats; last market call prices
     --
     :return: pandas series of floats; call option implied volatilities
     """
@@ -83,10 +83,10 @@ def impliedPut(S, X, r, t, P):
     Calculates put option implied volatilities given option chain data
     --
     :arg S: float; current underlying price
-    :arg X: list of floats/ints; exercise price(s)
+    :arg X: array of floats/ints; exercise price(s)
     :arg r: float; interest rate
     :arg t: float; time to expiration (in years)
-    :arg P: list of floats; last market put prices
+    :arg P: array of floats; last market put prices
     --
     :return: pandas series of floats; put option implied volatilities
     """
@@ -104,35 +104,40 @@ def impliedPut(S, X, r, t, P):
     result = Series(fsolve(fp, x0, args = (S,X,r,t,P))*100, index = X).round(2)
     return result.astype(str) + "%"
 
-def optionChain(chain, S, r, t, sigma, strikes = 10):
+def optionChain(ticker, expiration, r, sigma, strikes = 10):
     """
     Calculates and returns pandas dataframe for put and call option chains with Black-Scholes theoretical values, implied volatilities, and greeks columns.
+    Disclaimer - This tool is meant for purely educational purposes and no responsibility is accepted for the accuracy of the figures produced. Market quotes data is from Yahoo! Finance.
     --
-    :arg chain: str; relative or absolute directory of options chain, saved from yahoo finance as .html
-    :arg S: float; current underlying price
-    :arg r: float; interest rate
-    :arg t: float; time to expiration (in years)
-    :arg sigma: float; annualised volatility
-    :kwarg strikes: int; number of strike prices to display (default 10) (Note: fsolve begins to fail to converge for strikes > 14 due to inherent error of C-M initial guesses)
+    :arg ticker: str; ticker for which you want the option chain
+    :arg expiration: str; expiration date in the form "YYYY-MM-DD"
+    :arg r: float; interest rate over the life of the option
+    :arg sigma: float; annualised volatility estimate
+    :kwarg strikes: int; number of strike prices to display (default 10) (Note: fsolve begins to fail to converge for strikes > 14 due to inherent error of C-M initial guesses and limitations of scipy's fsolve method.)
     --
     :return call: pandas dataframe; call option chain and Black-Scholes theoretical values
     :return put: pandas dataframe; put option chain and Black-Scholes theoretical values
     """
-    import pandas as pd
+    import yfinance as yf
+    import datetime
     from pandas import Series, DataFrame
 
-    c = DataFrame(pd.read_html(chain)[0])
-    p = DataFrame(pd.read_html(chain)[1])
-    c.set_index(["Strike"], inplace = True)
-    p.set_index(["Strike"], inplace = True)
+    stock = yf.Ticker(ticker)
+    S = stock.info["regularMarketPrice"]
+    t = (datetime.datetime(int(expiration[:4]),int(expiration[5:7]),int(expiration[8:]))-datetime.datetime.now()).days/365
+
+    c = DataFrame(stock.option_chain(date = expiration)[0])
+    p = DataFrame(stock.option_chain(date = expiration)[1])
+    c.set_index("strike", inplace = True)
+    p.set_index("strike", inplace = True)
     c["Intrinsic Value"] = Series(S - c.index, index = c.index).map(lambda x: max(0,x))
     p["Intrinsic Value"] = Series(p.index - S, index = p.index).map(lambda x: max(0,x))
     c = c.iloc[(c.index.get_loc(c["Intrinsic Value"].idxmin()) - strikes//2):(c.index.get_loc(c["Intrinsic Value"].idxmin()) + strikes//2), 2:5] #idxmin returns first occurrence only
     p = p.iloc[(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) - 1 - strikes//2):(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) - 1 + strikes//2), 2:5]
     c["Black-Scholes"] = bsCall(S, c.index, r, t, sigma)[0].round(3)
     p["Black-Scholes"] = bsPut(S, p.index, r, t, sigma)[0].round(3)
-    c["Implied Volatility"] = impliedCall(S, c.index, r, t, c["Last price"])
-    p["Implied Volatility"] = impliedPut(S, p.index, r, t, p["Last price"])
+    c["Implied Volatility"] = impliedCall(S, c.index, r, t, c["lastPrice"])
+    p["Implied Volatility"] = impliedPut(S, p.index, r, t, p["lastPrice"])
     c = c.join(bsCall(S, c.index, r, t, sigma)[1].round(3))
     p = p.join(bsPut(S, p.index, r, t, sigma)[1].round(3))
     c.columns.name = "Calls"
