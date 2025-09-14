@@ -119,12 +119,12 @@ def optionChain(ticker, expiration, r, sigma, strikes = 10):
     :return put: pandas dataframe; put option chain and Black-Scholes theoretical values
     """
     import yfinance as yf
-    import datetime
+    import datetime as dt
     from pandas import Series, DataFrame
 
     stock = yf.Ticker(ticker)
     S = stock.info["regularMarketPrice"]
-    t = (datetime.datetime(int(expiration[:4]),int(expiration[5:7]),int(expiration[8:]))-datetime.datetime.now()).days/365
+    t = (dt.datetime(int(expiration[:4]),int(expiration[5:7]),int(expiration[8:]))-dt.datetime.now()).days/365
 
     c = DataFrame(stock.option_chain(date = expiration)[0])
     p = DataFrame(stock.option_chain(date = expiration)[1])

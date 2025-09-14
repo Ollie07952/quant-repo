@@ -22,4 +22,3 @@ def maxDraw(prices):
         bigs_draws.append(big_draw)
     max_draws = np.array([(abs_dd,percent_dd) for abs_dd,percent_dd in zip(bigs_abs,bigs_draws)])
     return max_draws
-

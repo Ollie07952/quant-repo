@@ -1,14 +1,17 @@
-def logReturns(prices):
+def logReturns(tickers,period):
     """
-    Calculates daily and cumulative log returns for each set of given prices
+    Calculates daily log returns for each given ticker over the given period.
     --
-    :arg prices: array; array(s) of prices
+    :arg tickers: str; ticker list as a single str of the form "ABC DEFG XYZ ..."
+    :arg period: str; the period of returns to analyse; one of: [1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max]
     --
-    :returns logs: array; daily log returns for each set of prices
-    :returns cumulative_logs: array; cumulative sum of daily log returns for each set of prices
+    :returns logs: dataframe; daily log returns for each ticker over the given period
     """
+    import yfinance as yf
     import numpy as np
 
-    logs = np.atleast_2d([[np.log(x/price_sets[max(i-1,0)]) for i,x in enumerate(price_sets)] for price_sets in prices])
-    cumulative_logs = np.array(np.cumsum(logs,axis = 1))
-    return logs, cumulative_logs
+    closes = yf.download(tickers, period = period, auto_adjust = True, progress = False)["Close"]
+    closes.columns.name = "Close"
+    logs = np.log(closes/closes.shift(1))
+    logs.columns.name = "Log Returns"
+    return logs
