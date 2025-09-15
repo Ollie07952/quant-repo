@@ -2,8 +2,7 @@
 venv/
 
 Python Data/
-Notebooks/
-
+Jupyter/
 __pycache__/
 *.pyc
 *.pyo
