@@ -2,7 +2,7 @@
 venv/
 
 Python Data/
-/Non repo scripts
+Non repo scripts/
 Jupyter/
 __pycache__/
 *.pyc
