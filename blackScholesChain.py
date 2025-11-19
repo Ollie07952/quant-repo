@@ -52,15 +52,16 @@ def bsPut(S, X, r, t, sigma):
     greeks = DataFrame({"Delta": delta, "Gamma": gamma, "Theta": theta}, index=X)
     return put, greeks
 
-def impliedCall(S, X, r, t, C):
+def impliedVol(S, X, r, t, C, P):
     """
-    Calculates call option implied volatilities given option chain data
+    Calculates call and put option implied volatilities given option chain data
     --
     :arg S: float; current underlying price
     :arg X: array of floats/ints; exercise price(s)
     :arg r: float; interest rate
     :arg t: float; time to expiration (in years)
     :arg C: array of floats; last market call prices
+    :arg P: array of floats; last market put prices
     --
     :return: pandas series of floats; call option implied volatilities
     """
@@ -74,35 +75,17 @@ def impliedCall(S, X, r, t, C):
         d2 = d1 - sigma * np.sqrt(t)
         return S * norm.cdf(d1) - np.array(X) * np.exp(-r * t) * norm.cdf(d2) - np.array(C)
 
-    x0 = (np.sqrt(2*np.pi)/np.sqrt(t))*(np.array(C)-(S-np.array(X)*np.exp(-r*t))/2)/(S+np.array(X)*np.exp(-r*t)) #Corrado-Miller approximations as initial guesses
-    result = Series(fsolve(fc, x0, args = (S,X,r,t,C))*100, index = X).round(2)
-    return result.astype(str) + "%"
-
-def impliedPut(S, X, r, t, P):
-    """
-    Calculates put option implied volatilities given option chain data
-    --
-    :arg S: float; current underlying price
-    :arg X: array of floats/ints; exercise price(s)
-    :arg r: float; interest rate
-    :arg t: float; time to expiration (in years)
-    :arg P: array of floats; last market put prices
-    --
-    :return: pandas series of floats; put option implied volatilities
-    """
-    import numpy as np
-    from pandas import Series
-    from scipy.optimize import fsolve
-    from scipy.stats import norm
-
     def fp(sigma, S, X, r, t, P):
         d1 = (np.log(S / np.array(X)) + (r + 0.5 * sigma ** 2) * t) / (sigma * np.sqrt(t))
         d2 = d1 - sigma * np.sqrt(t)
         return np.array(X) * np.exp(-r * t) * norm.cdf(-d2) - S * norm.cdf(-d1) - np.array(P)
 
-    x0 = (np.sqrt(2*np.pi)/np.sqrt(t))*(np.array(P)-(S-np.array(X)*np.exp(-r*t))/2)/(S+np.array(X)*np.exp(-r*t)) #Corrado-Miller approximations as initial guesses
-    result = Series(fsolve(fp, x0, args = (S,X,r,t,P))*100, index = X).round(2)
-    return result.astype(str) + "%"
+    Cx0 = (np.sqrt(2*np.pi)/(np.sqrt(t)*(S+np.array(X)*np.exp(-r*t))))*(np.array(C)-0.5*(S-np.array(X)*np.exp(-r*t)) + np.sqrt((np.array(C)-0.5*(S-np.array(X)*np.exp(-r*t)))**2 - ((S-np.array(X)*np.exp(-r*t))**2)/np.pi)) #Corrado-Miller approximation
+    Px0 = Cx0 - S + np.array(X)*np.exp(-r*t) #Corrado-Miller approximations through put-call parity
+    callIV = Series(fsolve(fc, Cx0, args = (S,X,r,t,C))*100, index = X).round(2)
+    putIV = Series(fsolve(fp, Px0, args = (S,X,r,t,P))*100, index = X).round(2)
+    putIV = putIV.where(putIV > 0, "Err")
+    return callIV.where(callIV > 0, "Err").astype(str) + "%", putIV.where(putIV > 0, "Err").astype(str) + "%"
 
 def optionChain(ticker, expiration, r, sigma, strikes = 10):
     """
@@ -133,11 +116,10 @@ def optionChain(ticker, expiration, r, sigma, strikes = 10):
     c["Intrinsic Value"] = Series(S - c.index, index = c.index).map(lambda x: max(0,x))
     p["Intrinsic Value"] = Series(p.index - S, index = p.index).map(lambda x: max(0,x))
     c = c.iloc[(c.index.get_loc(c["Intrinsic Value"].idxmin()) - strikes//2):(c.index.get_loc(c["Intrinsic Value"].idxmin()) + strikes//2), 2:5] #idxmin returns first occurrence only
-    p = p.iloc[(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) - 1 - strikes//2):(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) - 1 + strikes//2), 2:5]
+    p = p.iloc[(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) - strikes//2):(p.index.get_loc(p["Intrinsic Value"][p["Intrinsic Value"] != 0].idxmin()) + strikes//2), 2:5]
     c["Black-Scholes"] = bsCall(S, c.index, r, t, sigma)[0].round(3)
     p["Black-Scholes"] = bsPut(S, p.index, r, t, sigma)[0].round(3)
-    c["Implied Volatility"] = impliedCall(S, c.index, r, t, c["lastPrice"])
-    p["Implied Volatility"] = impliedPut(S, p.index, r, t, p["lastPrice"])
+    c["Implied Volatility"], p["Implied Volatility"] = impliedVol(S, c.index, r, t, c["lastPrice"], p["lastPrice"])
     c = c.join(bsCall(S, c.index, r, t, sigma)[1].round(3))
     p = p.join(bsPut(S, p.index, r, t, sigma)[1].round(3))
     c.columns.name = "Calls"
